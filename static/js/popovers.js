@@ -71,9 +71,9 @@ function show_message_info_popover(element, id) {
             narrowed: narrow.active(),
         };
 
-        var ypos = elt.offset().top - viewport.scrollTop();
+        var ypos = elt.offset().top - message_viewport.scrollTop();
         elt.popover({
-            placement: (ypos > (viewport.height() - 300)) ? 'top' : 'bottom',
+            placement: (ypos > (message_viewport.height() - 300)) ? 'top' : 'bottom',
             title:     templates.render('message_info_popover_title',   args),
             content:   templates.render('message_info_popover_content', args),
             trigger:   "manual",
@@ -126,8 +126,8 @@ exports.toggle_reactions_popover = function (element, id) {
 
         var approx_popover_height = 400;
         var approx_popover_width = 400;
-        var distance_from_bottom = viewport.height() - elt.offset().top;
-        var distance_from_right = viewport.width() - elt.offset().left;
+        var distance_from_bottom = message_viewport.height() - elt.offset().top;
+        var distance_from_right = message_viewport.width() - elt.offset().left;
         var will_extend_beyond_bottom_of_viewport = distance_from_bottom < approx_popover_height;
         var will_extend_beyond_top_of_viewport = elt.offset().top < approx_popover_height;
         var will_extend_beyond_left_of_viewport = elt.offset().left < (approx_popover_width / 2);
@@ -179,10 +179,10 @@ exports.toggle_actions_popover = function (element, id) {
             editability_menu_item = i18n.t("Edit");
         } else if (editability === message_edit.editability_types.TOPIC_ONLY) {
             use_edit_icon = false;
-            editability_menu_item = i18n.t("View Source / Edit Topic");
+            editability_menu_item = i18n.t("View source / Edit topic");
         } else {
             use_edit_icon = false;
-            editability_menu_item = i18n.t("View Source");
+            editability_menu_item = i18n.t("View source");
         }
         var can_mute_topic =
                 message.stream &&
@@ -209,9 +209,10 @@ exports.toggle_actions_popover = function (element, id) {
             narrowed: narrow.active(),
         };
 
-        var ypos = elt.offset().top - viewport.scrollTop();
+        var ypos = elt.offset().top;
         elt.popover({
-            placement: (ypos > (viewport.height() - 300)) ? 'top' : 'bottom',
+            // Popover height with 7 items in it is ~190 px
+            placement: ((message_viewport.height() - ypos) < 220) ? 'top' : 'bottom',
             title:     "",
             content:   templates.render('actions_popover_content', args),
             trigger:   "manual",
@@ -375,7 +376,7 @@ exports.register_click_handlers = function () {
         popovers.toggle_actions_popover(this, rows.id(row));
     });
 
-    $("#main_div").on("click", ".reactions_hover", function (e) {
+    $("#main_div").on("click", ".reactions_hover, .reaction_button", function (e) {
         var row = $(this).closest(".message_row");
         e.stopPropagation();
         popovers.toggle_reactions_popover(this, rows.id(row));
@@ -647,7 +648,7 @@ exports.register_click_handlers = function () {
         var stream = $(e.currentTarget).data('msg-stream');
         var topic = $(e.currentTarget).data('msg-topic');
         popovers.hide_actions_popover();
-        exports.topic_ops.mute(stream, topic);
+        stream_popover.topic_ops.mute(stream, topic);
         e.stopPropagation();
         e.preventDefault();
     });

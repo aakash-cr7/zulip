@@ -125,7 +125,7 @@ i18n_urls = [
     url(r'^register/$', zerver.views.registration.accounts_home, name='register'),
     url(r'^login/$', zerver.views.auth.login_page, {'template_name': 'zerver/login.html'}, name='zerver.views.auth.login_page'),
 
-    # A registration page that passes through the domain, for totally open realms.
+    # A registration page that passes through the Realm.string_id, for totally open realms.
     url(r'^register/(?P<realm_str>\S+)/$', zerver.views.registration.accounts_home_with_realm_str,
         name='zerver.views.registration.accounts_home_with_realm_str'),
 
@@ -263,6 +263,10 @@ v1_api_and_json_patterns = [
     url(r'^user_uploads$', rest_dispatch,
         {'POST': 'zerver.views.upload.upload_file_backend'}),
 
+    # invite -> zerver.views.invite
+    url(r'^invite/bulk$', rest_dispatch,
+        {'POST': 'zerver.views.invite.bulk_invite_users'}),
+
     # users/me -> zerver.views
     url(r'^users/me$', rest_dispatch,
         {'GET': 'zerver.views.users.get_profile_backend',
@@ -336,6 +340,9 @@ v1_api_and_json_patterns = [
          'POST': 'zerver.views.streams.add_subscriptions_backend',
          'PATCH': 'zerver.views.streams.update_subscriptions_backend',
          'DELETE': 'zerver.views.streams.remove_subscriptions_backend'}),
+    # muting -> zerver.views.muting
+    url(r'^users/me/subscriptions/muted_topics$', rest_dispatch,
+        {'POST': 'zerver.views.muting.set_muted_topics'}),
 
     # used to register for an event queue in tornado
     url(r'^register$', rest_dispatch,

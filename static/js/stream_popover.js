@@ -32,7 +32,7 @@ exports.hide_topic_popover = function () {
 // These are the only two functions that is really shared by the
 // two popovers, so we could split out topic stuff to
 // another module pretty easily.
-exports.resize_stream_list = function () {
+exports.show_streamlist_sidebar = function () {
     $(".app-main .column-left").addClass("expanded");
     resize.resize_page_components();
 };
@@ -82,7 +82,7 @@ function build_stream_popover(e) {
     }
 
     popovers.hide_all();
-    exports.resize_stream_list();
+    exports.show_streamlist_sidebar();
 
     var stream = $(elt).parents('li').attr('data-name');
 
@@ -115,7 +115,7 @@ function build_topic_popover(e) {
     if (exports.topic_popped()
         && current_topic_sidebar_elem === elt) {
         // If the popover is already shown, clicking again should toggle it.
-        popovers.hide_topic_popover();
+        exports.hide_topic_popover();
         e.stopPropagation();
         return;
     }
@@ -130,7 +130,7 @@ function build_topic_popover(e) {
     }
 
     popovers.hide_all();
-    exports.resize_stream_list();
+    exports.show_streamlist_sidebar();
 
     var is_muted = muting.is_topic_muted(stream_name, topic_name);
     var can_mute_topic = !is_muted;
@@ -173,7 +173,7 @@ exports.register_stream_handlers = function () {
         var sub = stream_popover_sub(e);
         exports.hide_stream_popover();
 
-        window.location.hash = "#subscriptions";
+        window.location.hash = "#streams";
         // the template for subs needs to render.
 
         subs.onlaunch("narrow_to_row", function () {

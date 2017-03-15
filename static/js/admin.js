@@ -94,15 +94,26 @@ function populate_users(realm_people_data) {
     deactivated_users = _.sortBy(deactivated_users, 'full_name');
     bots = _.sortBy(bots, 'full_name');
 
+    var bots_table_html = "";
     _.each(bots, function (user) {
-        bots_table.append(templates.render("admin_user_list", {user: user}));
+        var bot_html = templates.render("admin_user_list", {user: user});
+        bots_table_html = bots_table_html.concat(bot_html);
     });
+    bots_table.append(bots_table_html);
+
+    var users_table_html = "";
     _.each(active_users, function (user) {
-        users_table.append(templates.render("admin_user_list", {user: user}));
+        var user_html = templates.render("admin_user_list", {user: user});
+        users_table_html = users_table_html.concat(user_html);
     });
+    users_table.append(users_table_html);
+
+    var deactivated_table_html = "";
     _.each(deactivated_users, function (user) {
-        deactivated_users_table.append(templates.render("admin_user_list", {user: user}));
+        var user_html = templates.render("admin_user_list", {user: user});
+        deactivated_table_html = deactivated_table_html.concat(user_html);
     });
+    deactivated_users_table.append(deactivated_table_html);
     loading.destroy_indicator($('#admin_page_users_loading_indicator'));
     loading.destroy_indicator($('#admin_page_bots_loading_indicator'));
     loading.destroy_indicator($('#admin_page_deactivated_users_loading_indicator'));
@@ -117,6 +128,15 @@ function populate_streams(streams_data) {
     });
     loading.destroy_indicator($('#admin_page_streams_loading_indicator'));
 }
+
+exports.toggle_name_change_display = function () {
+    if ($('#full_name').attr('disabled')) {
+        $('#full_name').removeAttr('disabled');
+    } else {
+        $('#full_name').attr('disabled', 'disabled');
+    }
+    $(".change_name_tooltip").toggle();
+};
 
 exports.toggle_email_change_display = function () {
     $("#change_email").toggle();
@@ -325,6 +345,7 @@ function _setup_page() {
         realm_invite_by_admins_only: page_params.realm_invite_by_admins_only,
         realm_authentication_methods: page_params.realm_authentication_methods,
         realm_create_stream_by_admins_only: page_params.realm_create_stream_by_admins_only,
+        realm_name_changes_disabled: page_params.realm_name_changes_disabled,
         realm_email_changes_disabled: page_params.realm_email_changes_disabled,
         realm_add_emoji_by_admins_only: page_params.realm_add_emoji_by_admins_only,
         realm_allow_message_editing: page_params.realm_allow_message_editing,
@@ -577,6 +598,7 @@ function _setup_page() {
         var invite_by_admins_only_status = $("#admin-realm-invite-by-admins-only-status").expectOne();
         var authentication_methods_status = $("#admin-realm-authentication-methods-status").expectOne();
         var create_stream_by_admins_only_status = $("#admin-realm-create-stream-by-admins-only-status").expectOne();
+        var name_changes_disabled_status = $("#admin-realm-name-changes-disabled-status").expectOne();
         var email_changes_disabled_status = $("#admin-realm-email-changes-disabled-status").expectOne();
         var add_emoji_by_admins_only_status = $("#admin-realm-add-emoji-by-admins-only-status").expectOne();
         var message_editing_status = $("#admin-realm-message-editing-status").expectOne();
@@ -588,6 +610,7 @@ function _setup_page() {
         invite_by_admins_only_status.hide();
         authentication_methods_status.hide();
         create_stream_by_admins_only_status.hide();
+        name_changes_disabled_status.hide();
         email_changes_disabled_status.hide();
         add_emoji_by_admins_only_status.hide();
         message_editing_status.hide();
@@ -602,6 +625,7 @@ function _setup_page() {
         var new_invite = $("#id_realm_invite_required").prop("checked");
         var new_invite_by_admins_only = $("#id_realm_invite_by_admins_only").prop("checked");
         var new_create_stream_by_admins_only = $("#id_realm_create_stream_by_admins_only").prop("checked");
+        var new_name_changes_disabled = $("#id_realm_name_changes_disabled").prop("checked");
         var new_email_changes_disabled = $("#id_realm_email_changes_disabled").prop("checked");
         var new_add_emoji_by_admins_only = $("#id_realm_add_emoji_by_admins_only").prop("checked");
         var new_allow_message_editing = $("#id_realm_allow_message_editing").prop("checked");
@@ -633,6 +657,7 @@ function _setup_page() {
             invite_by_admins_only: JSON.stringify(new_invite_by_admins_only),
             authentication_methods: JSON.stringify(new_auth_methods),
             create_stream_by_admins_only: JSON.stringify(new_create_stream_by_admins_only),
+            name_changes_disabled: JSON.stringify(new_name_changes_disabled),
             email_changes_disabled: JSON.stringify(new_email_changes_disabled),
             add_emoji_by_admins_only: JSON.stringify(new_add_emoji_by_admins_only),
             allow_message_editing: JSON.stringify(new_allow_message_editing),
@@ -672,9 +697,16 @@ function _setup_page() {
                 }
                 if (response_data.create_stream_by_admins_only !== undefined) {
                     if (response_data.create_stream_by_admins_only) {
-                        ui.report_success(i18n.t("Only Admins may now create new streams!"), create_stream_by_admins_only_status);
+                        ui.report_success(i18n.t("Only administrators may now create new streams!"), create_stream_by_admins_only_status);
                     } else {
                         ui.report_success(i18n.t("Any user may now create new streams!"), create_stream_by_admins_only_status);
+                    }
+                }
+                if (response_data.name_changes_disabled !== undefined) {
+                    if (response_data.name_changes_disabled) {
+                        ui.report_success(i18n.t("Users cannot change their name!"), name_changes_disabled_status);
+                    } else {
+                        ui.report_success(i18n.t("Users may now change their name!"), name_changes_disabled_status);
                     }
                 }
                 if (response_data.email_changes_disabled !== undefined) {
@@ -686,7 +718,7 @@ function _setup_page() {
                 }
                 if (response_data.add_emoji_by_admins_only !== undefined) {
                     if (response_data.add_emoji_by_admins_only) {
-                        ui.report_success(i18n.t("Only Admins may now add new emoji!"), add_emoji_by_admins_only_status);
+                        ui.report_success(i18n.t("Only administrators may now add new emoji!"), add_emoji_by_admins_only_status);
                     } else {
                         ui.report_success(i18n.t("Any user may now add new emoji!"), add_emoji_by_admins_only_status);
                     }
@@ -725,7 +757,7 @@ function _setup_page() {
                 }
                 if (response_data.waiting_period_threshold !== undefined) {
                     if (response_data.waiting_period_threshold > 0) {
-                        ui.report_success(i18n.t("waiting period threshold changed!"), waiting_period_threshold_status);
+                        ui.report_success(i18n.t("Waiting period threshold changed!"), waiting_period_threshold_status);
                     }
                 }
                 // Check if no changes made

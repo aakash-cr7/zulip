@@ -19,7 +19,7 @@ casper.waitForSelector('#settings_overlay_container.show', function () {
     casper.test.assertUrlMatch(/^http:\/\/[^/]+\/#administration/, 'URL suggests we are on administration page');
 });
 
-// Test only admins may create streams Setting
+// Test setting limiting stream creation to administrators
 casper.waitForSelector('input[type="checkbox"][id="id_realm_create_stream_by_admins_only"]', function () {
     casper.click('input[type="checkbox"][id="id_realm_create_stream_by_admins_only"]');
     casper.click('form.admin-realm-form input.button');
@@ -28,7 +28,8 @@ casper.waitForSelector('input[type="checkbox"][id="id_realm_create_stream_by_adm
 casper.then(function () {
     // Test setting was activated
     casper.waitUntilVisible('#admin-realm-create-stream-by-admins-only-status', function () {
-        casper.test.assertSelectorHasText('#admin-realm-create-stream-by-admins-only-status', 'Only Admins may now create new streams!');
+        casper.test.assertSelectorHasText('#admin-realm-create-stream-by-admins-only-status',
+                                          'Only administrators may now create new streams!');
         casper.test.assertEval(function () {
             return document.querySelector('input[type="checkbox"][id="id_realm_create_stream_by_admins_only"]').checked;
         }, 'Only admins may create streams Setting activated');
@@ -38,7 +39,7 @@ casper.then(function () {
 casper.then(function () {
     // Leave the page and return
     casper.click('#settings-dropdown');
-    casper.click('a[href^="#subscriptions"]');
+    casper.click('a[href^="#streams"]');
     casper.click('#settings-dropdown');
     casper.click('a[href^="#administration"]');
 });
@@ -223,7 +224,7 @@ casper.then(function () {
     casper.click("li[data-section='organization-settings']");
     casper.click("#realm_icon_delete_button");
     casper.test.assertEqual(casper.visible('#realm_icon_delete_button'), true);
-    casper.waitWhileVisible("#upload_icon_spinner .loading_indicator_spinner", function () {
+    casper.waitWhileVisible('#realm_icon_delete_button', function () {
         casper.test.assertExists('img#realm-settings-icon[src^="https://secure.gravatar.com/avatar/"]');
         casper.test.assertEqual(casper.visible('#realm_icon_delete_button'), false);
     });
@@ -272,7 +273,7 @@ casper.then(function () {
 casper.then(function () {
     // Leave the page and return
     casper.click('#settings-dropdown');
-    casper.click('a[href^="#subscriptions"]');
+    casper.click('a[href^="#streams"]');
     casper.click('#settings-dropdown');
     casper.click('a[href^="#administration"]');
 

@@ -6,18 +6,20 @@ from django.http import HttpResponse
 from django.test import TestCase
 from django.utils import timezone
 
-from mock import patch
+from mock import patch, MagicMock
 from zerver.lib.test_helpers import MockLDAP
 
 from confirmation.models import Confirmation
 
 from zilencer.models import Deployment
 
-from zerver.forms import HomepageForm
+from zerver.forms import HomepageForm, WRONG_SUBDOMAIN_ERROR
 from zerver.lib.actions import do_change_password
 from zerver.views.invite import get_invitee_emails_set
+from zerver.views.registration import confirmation_key
 from zerver.models import (
     get_realm, get_prereg_user_by_email, get_user_profile_by_email,
+    get_unique_open_realm, completely_open,
     PreregistrationUser, Realm, RealmAlias, Recipient,
     Referral, ScheduledJob, UserProfile, UserMessage,
     Stream, Subscription, ScheduledJob
@@ -42,7 +44,7 @@ from zerver.lib.test_classes import (
     ZulipTestCase,
 )
 from zerver.lib.test_runner import slow
-from zerver.lib.session_user import get_session_dict_user
+from zerver.lib.sessions import get_session_dict_user
 from zerver.context_processors import common_context
 
 import re
@@ -52,101 +54,8 @@ from typing import Dict, List, Set, Optional
 
 from six.moves import urllib
 from six.moves import range
-import six
 from typing import Any, Text
 import os
-
-class PublicURLTest(ZulipTestCase):
-    """
-    Account creation URLs are accessible even when not logged in. Authenticated
-    URLs redirect to a page.
-    """
-
-    def fetch(self, method, urls, expected_status):
-        # type: (str, List[str], int) -> None
-        for url in urls:
-            # e.g. self.client_post(url) if method is "post"
-            response = getattr(self, method)(url)
-            self.assertEqual(response.status_code, expected_status,
-                             msg="Expected %d, received %d for %s to %s" % (
-                                 expected_status, response.status_code, method, url))
-
-    def test_public_urls(self):
-        # type: () -> None
-        """
-        Test which views are accessible when not logged in.
-        """
-        # FIXME: We should also test the Tornado URLs -- this codepath
-        # can't do so because this Django test mechanism doesn't go
-        # through Tornado.
-        denmark_stream_id = Stream.objects.get(name='Denmark').id
-        get_urls = {200: ["/accounts/home/", "/accounts/login/"
-                          "/en/accounts/home/", "/ru/accounts/home/",
-                          "/en/accounts/login/", "/ru/accounts/login/",
-                          "/help/"],
-                    302: ["/", "/en/", "/ru/"],
-                    401: ["/json/streams/%d/members" % (denmark_stream_id,),
-                          "/api/v1/users/me/subscriptions",
-                          "/api/v1/messages",
-                          "/json/messages",
-                          "/api/v1/streams",
-                          ],
-                    404: ["/help/nonexistent"],
-                    }
-
-        # Add all files in 'templates/zerver/help' directory (except for 'main.html' and
-        # 'index.md') to `get_urls['200']` list.
-        for doc in os.listdir('./templates/zerver/help'):
-            if doc.startswith(".") or '~' in doc or '#' in doc:
-                continue  # nocoverage -- just here for convenience
-            if doc not in {'main.html', 'index.md', 'include'}:
-                get_urls[200].append('/help/' + os.path.splitext(doc)[0]) # Strip the extension.
-
-        post_urls = {200: ["/accounts/login/"],
-                     302: ["/accounts/logout/"],
-                     401: ["/json/messages",
-                           "/json/invite_users",
-                           "/json/settings/change",
-                           "/json/subscriptions/exists",
-                           "/json/subscriptions/property",
-                           "/json/fetch_api_key",
-                           "/json/users/me/pointer",
-                           "/json/users/me/subscriptions",
-                           "/api/v1/users/me/subscriptions",
-                           ],
-                     400: ["/api/v1/external/github",
-                           "/api/v1/fetch_api_key",
-                           ],
-                     }
-        put_urls = {401: ["/json/users/me/pointer"],
-                    }
-        for status_code, url_set in six.iteritems(get_urls):
-            self.fetch("client_get", url_set, status_code)
-        for status_code, url_set in six.iteritems(post_urls):
-            self.fetch("client_post", url_set, status_code)
-        for status_code, url_set in six.iteritems(put_urls):
-            self.fetch("client_put", url_set, status_code)
-
-    def test_get_gcid_when_not_configured(self):
-        # type: () -> None
-        with self.settings(GOOGLE_CLIENT_ID=None):
-            resp = self.client_get("/api/v1/fetch_google_client_id")
-            self.assertEqual(400, resp.status_code,
-                             msg="Expected 400, received %d for GET /api/v1/fetch_google_client_id" % (
-                                 resp.status_code,))
-            data = ujson.loads(resp.content)
-            self.assertEqual('error', data['result'])
-
-    def test_get_gcid_when_configured(self):
-        # type: () -> None
-        with self.settings(GOOGLE_CLIENT_ID="ABCD"):
-            resp = self.client_get("/api/v1/fetch_google_client_id")
-            self.assertEqual(200, resp.status_code,
-                             msg="Expected 200, received %d for GET /api/v1/fetch_google_client_id" % (
-                                 resp.status_code,))
-            data = ujson.loads(resp.content)
-            self.assertEqual('success', data['result'])
-            self.assertEqual('ABCD', data['google_client_id'])
 
 class AddNewUserHistoryTest(ZulipTestCase):
     def test_add_new_user_history_race(self):
@@ -376,7 +285,7 @@ class InviteUserTest(ZulipTestCase):
         params = {
             'invitee_emails': ujson.dumps(invitees),
         }
-        result = self.client_post('/json/bulk_invite_users', params)
+        result = self.client_post('/json/invite/bulk', params)
         self.assert_json_success(result)
         self.check_sent_emails(invitees)
 
@@ -388,7 +297,7 @@ class InviteUserTest(ZulipTestCase):
             'invitee_emails': ujson.dumps(invitees),
         }
         self.assert_json_error(
-            self.client_post('/json/bulk_invite_users', params),
+            self.client_post('/json/invite/bulk', params),
             'Some emails did not validate, so we didn\'t send any invitations.')
         self.check_sent_emails([])
 
@@ -888,6 +797,36 @@ class RealmCreationTest(ZulipTestCase):
 
             self.assertTrue(result["Location"].endswith("/"))
 
+    def test_create_realm_existing_email(self):
+        # type: () -> None
+        """
+        Trying to create a realm with an existing email should just redirect to
+        a login page.
+        """
+        with self.settings(OPEN_REALM_CREATION=True):
+            email = 'hamlet@zulip.com'
+            result = self.client_post('/create_realm/', {'email': email})
+            self.assertEqual(result.status_code, 302)
+            self.assertIn('login', result['Location'])
+
+    def test_create_realm_no_creation_key(self):
+        # type: () -> None
+        """
+        Trying to create a realm without a creation_key should fail when
+        OPEN_REALM_CREATION is false.
+        """
+        email = "user1@test.com"
+        realm = get_realm('test')
+
+        # Make sure the realm does not exist
+        self.assertIsNone(realm)
+
+        with self.settings(OPEN_REALM_CREATION=False):
+            # Create new realm with the email, but no creation key.
+            result = self.client_post('/create_realm/', {'email': email})
+            self.assertEqual(result.status_code, 200)
+            self.assert_in_response('New organization creation disabled.', result)
+
     def test_create_realm_with_subdomain(self):
         # type: () -> None
         password = "test"
@@ -1001,11 +940,20 @@ class UserSignUpTest(ZulipTestCase):
         from django.core.mail import outbox
         outbox.pop()
 
+    def test_signup_already_active(self):
+        # type: () -> None
+        """
+        Check if signing up with an active email redirects to a login page.
+        """
+        email = 'hamlet@zulip.com'
+        result = self.client_post('/accounts/home/', {'email': email})
+        self.assertEqual(result.status_code, 302)
+        self.assertIn('login', result['Location'])
+
     def test_signup_invalid_name(self):
         # type: () -> None
         """
-        Check if the default language of new user is the default language
-        of the realm.
+        Check if an invalid name during signup is handled properly.
         """
         email = "newguy@zulip.com"
         password = "newpassword"
@@ -1112,6 +1060,33 @@ class UserSignUpTest(ZulipTestCase):
                                                # Pass HTTP_HOST for the target subdomain
                                                HTTP_HOST=subdomain + ".testserver")
         self.assert_in_success_response(["You're almost there."], result)
+
+    def test_failed_signup_with_realm_str(self):
+        # type: () -> None
+        """
+        Signing up with the special accounts_home_with_realm_str endpoint should
+        fail (i.e. redirect to the standard accounts_home) if
+        settings.REALMS_HAVE_SUBDOMAINS is true, or if the realm is not
+        completely open.
+        """
+        realm = get_realm('zulip')
+        realm.restricted_to_domain = False
+        realm.invite_required = False
+        realm.save()
+        with self.settings(REALMS_HAVE_SUBDOMAINS=True):
+            email = 'user1@acme.com'
+            result = self.client_post('/register/zulip/', {'email': email})
+            self.assertEqual(result.status_code, 302)
+            self.assertIn('accounts/home', result['Location'])
+
+        realm = get_realm('zulip')
+        realm.invite_required = True
+        realm.save()
+        with self.settings(REALMS_HAVE_SUBDOMAINS=False):
+            email = 'user1@acme.com'
+            result = self.client_post('/register/zulip/', {'email': email})
+            self.assertEqual(result.status_code, 302)
+            self.assertIn('accounts/home', result['Location'])
 
     def test_failed_signup_due_to_restricted_domain(self):
         # type: () -> None
@@ -1274,6 +1249,23 @@ class UserSignUpTest(ZulipTestCase):
         self.assertEqual(result.status_code, 302)
         self.assertEqual(get_session_dict_user(self.client.session), user_profile.id)
 
+class TestOpenRealms(ZulipTestCase):
+    def test_open_realm_logic(self):
+        # type: () -> None
+        realm = get_realm('simple')
+        do_deactivate_realm(realm)
+
+        mit_realm = get_realm("zephyr")
+        self.assertEqual(get_unique_open_realm(), None)
+        mit_realm.restricted_to_domain = False
+        mit_realm.save()
+        self.assertTrue(completely_open(mit_realm))
+        self.assertEqual(get_unique_open_realm(), None)
+        with self.settings(SYSTEM_ONLY_REALMS={"zulip"}):
+            self.assertEqual(get_unique_open_realm(), mit_realm)
+        mit_realm.restricted_to_domain = True
+        mit_realm.save()
+
 class DeactivateUserTest(ZulipTestCase):
 
     def test_deactivate_user(self):
@@ -1306,3 +1298,114 @@ class DeactivateUserTest(ZulipTestCase):
         result = self.client_delete('/json/users/me')
         self.assert_json_success(result)
         do_change_is_admin(user, True)
+
+class TestLoginPage(ZulipTestCase):
+    def test_login_page_wrong_subdomain_error(self):
+        # type: () -> None
+        result = self.client_get("/login/?subdomain=1")
+        self.assertIn(WRONG_SUBDOMAIN_ERROR, result.content.decode('utf8'))
+
+    @patch('django.http.HttpRequest.get_host')
+    def test_login_page_redirects_for_root_alias(self, mock_get_host):
+        # type: (MagicMock) -> None
+        mock_get_host.return_value = 'www.testserver'
+        with self.settings(REALMS_HAVE_SUBDOMAINS=True,
+                           ROOT_SUBDOMAIN_ALIASES=['www']):
+            result = self.client_get("/en/login/")
+            self.assertEqual(result.status_code, 302)
+            self.assertEqual(result.url, '/find_my_team/')
+
+    @patch('django.http.HttpRequest.get_host')
+    def test_login_page_redirects_for_root_domain(self, mock_get_host):
+        # type: (MagicMock) -> None
+        mock_get_host.return_value = 'testserver'
+        with self.settings(REALMS_HAVE_SUBDOMAINS=True,
+                           ROOT_SUBDOMAIN_ALIASES=['www']):
+            result = self.client_get("/en/login/")
+            self.assertEqual(result.status_code, 302)
+            self.assertEqual(result.url, '/find_my_team/')
+
+        mock_get_host.return_value = 'www.testserver.com'
+        with self.settings(REALMS_HAVE_SUBDOMAINS=True,
+                           EXTERNAL_HOST='www.testserver.com',
+                           ROOT_SUBDOMAIN_ALIASES=['test']):
+            result = self.client_get("/en/login/")
+            self.assertEqual(result.status_code, 302)
+            self.assertEqual(result.url, '/find_my_team/')
+
+    @patch('django.http.HttpRequest.get_host')
+    def test_login_page_works_without_subdomains(self, mock_get_host):
+        # type: (MagicMock) -> None
+        mock_get_host.return_value = 'www.testserver'
+        with self.settings(ROOT_SUBDOMAIN_ALIASES=['www']):
+            result = self.client_get("/en/login/")
+            self.assertEqual(result.status_code, 200)
+
+        mock_get_host.return_value = 'testserver'
+        with self.settings(ROOT_SUBDOMAIN_ALIASES=['www']):
+            result = self.client_get("/en/login/")
+            self.assertEqual(result.status_code, 200)
+
+class TestFindMyTeam(ZulipTestCase):
+    def test_template(self):
+        # type: () -> None
+        result = self.client_get('/find_my_team/')
+        self.assertIn("Find your team", result.content.decode('utf8'))
+
+    def test_result(self):
+        # type: () -> None
+        url = '/find_my_team/?emails=iago@zulip.com,cordelia@zulip.com'
+        result = self.client_get(url)
+        content = result.content.decode('utf8')
+        self.assertIn("Emails sent! You will only receive emails", content)
+        self.assertIn("iago@zulip.com", content)
+        self.assertIn("cordelia@zulip.com", content)
+
+    def test_find_team_ignore_invalid_email(self):
+        # type: () -> None
+        url = '/find_my_team/?emails=iago@zulip.com,invalid_email'
+        result = self.client_get(url)
+        content = result.content.decode('utf8')
+        self.assertIn("Emails sent! You will only receive emails", content)
+        self.assertIn("iago@zulip.com", content)
+        self.assertNotIn("invalid_email", content)
+
+    def test_find_team_zero_emails(self):
+        # type: () -> None
+        data = {'emails': ''}
+        result = self.client_post('/find_my_team/', data)
+        self.assertIn('This field is required', result.content.decode('utf8'))
+        self.assertEqual(result.status_code, 200)
+
+    def test_find_team_one_email(self):
+        # type: () -> None
+        data = {'emails': 'hamlet@zulip.com'}
+        result = self.client_post('/find_my_team/', data)
+        self.assertEqual(result.status_code, 302)
+        self.assertEqual(result.url, '/find_my_team/?emails=hamlet%40zulip.com')
+
+    def test_find_team_multiple_emails(self):
+        # type: () -> None
+        data = {'emails': 'hamlet@zulip.com,iago@zulip.com'}
+        result = self.client_post('/find_my_team/', data)
+        self.assertEqual(result.status_code, 302)
+        expected = '/find_my_team/?emails=hamlet%40zulip.com%2Ciago%40zulip.com'
+        self.assertEqual(result.url, expected)
+
+    def test_find_team_more_than_ten_emails(self):
+        # type: () -> None
+        data = {'emails': ','.join(['hamlet-{}@zulip.com'.format(i) for i in range(11)])}
+        result = self.client_post('/find_my_team/', data)
+        self.assertEqual(result.status_code, 200)
+        self.assertIn("Please enter at most 10", result.content.decode('utf8'))
+
+class ConfirmationKeyTest(ZulipTestCase):
+    def test_confirmation_key(self):
+        # type: () -> None
+        request = MagicMock()
+        request.session = {
+            'confirmation_key': {'confirmation_key': 'xyzzy'}
+        }
+        result = confirmation_key(request)
+        self.assert_json_success(result)
+        self.assert_in_response('xyzzy', result)

@@ -228,7 +228,7 @@ function render(template_name, args) {
     assert.equal($(buttons[1]).text().trim(), "Make admin");
     assert($(buttons[1]).hasClass("make-admin"));
 
-    assert.equal($(buttons[2]).attr('title').trim(), "Edit User");
+    assert.equal($(buttons[2]).attr('title').trim(), "Edit user");
     assert($(buttons[2]).hasClass("open-user-form"));
 
     global.write_handlebars_output("admin_user_list", html);
@@ -335,7 +335,7 @@ function render(template_name, args) {
     html += '<div id="settings">';
     html += '<div id="bot-settings" class="settings-section">';
     html += '<div class="bot-settings-form">';
-    html += '<ol id="bots_list" style="display: block">';
+    html += '<ol id="active_bots_list" style="display: block">';
     var args = {
         email: "hamlet@zulip.com",
         api_key: "123456ABCD",
@@ -762,7 +762,6 @@ function render(template_name, args) {
     var page_params = $.extend(page_param_checkbox_options, {
         fullname: "Alyssa P. Hacker", password_auth_enabled: true,
         avatar_url: "https://google.com",
-        domain: "zulip.com",
     });
 
     var checkbox_ids = ["enable_stream_desktop_notifications",

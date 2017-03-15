@@ -213,7 +213,6 @@ def home_real(request):
         # TODO: Move all of these data to register_ret and pull from there
         realm_uri             = user_profile.realm.uri,
         password_auth_enabled = password_auth_enabled(user_profile.realm),
-        domain                = user_profile.realm.domain,
         domains               = list_of_domains_for_realm(user_profile.realm),
         name_changes_disabled = name_changes_disabled(user_profile.realm),
         mandatory_topics      = user_profile.realm.mandatory_topics,
@@ -291,17 +290,20 @@ def home_real(request):
         'realm_add_emoji_by_admins_only',
         'realm_allow_message_editing',
         'realm_authentication_methods',
+        'realm_bot_domain',
         'realm_create_stream_by_admins_only',
         'realm_default_language',
         'realm_default_streams',
+        'realm_email_changes_disabled',
         'realm_emoji',
+        'realm_filters',
         'realm_icon_source',
         'realm_icon_url',
-        'realm_message_content_edit_limit_seconds',
-        'realm_name',
         'realm_invite_by_admins_only',
         'realm_invite_required',
-        'realm_filters',
+        'realm_message_content_edit_limit_seconds',
+        'realm_name',
+        'realm_name_changes_disabled',
         'realm_restricted_to_domain',
         'realm_waiting_period_threshold',
         'referrals',
@@ -334,8 +336,6 @@ def home_real(request):
     if user_profile.realm.invite_by_admins_only and not user_profile.is_realm_admin:
         show_invites = False
 
-    product_name = "Zulip"
-    page_params['product_name'] = product_name
     request._log_data['extra'] = "[%s]" % (register_ret["queue_id"],)
     response = render_to_response('zerver/index.html',
                                   {'user_profile': user_profile,
@@ -350,7 +350,6 @@ def home_real(request):
                                    'show_webathena': user_profile.realm.webathena_enabled,
                                    'enable_feedback': settings.ENABLE_FEEDBACK,
                                    'embedded': narrow_stream is not None,
-                                   'product_name': product_name
                                    },
                                   request=request)
     patch_cache_control(response, no_cache=True, no_store=True, must_revalidate=True)

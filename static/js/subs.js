@@ -2,7 +2,7 @@ var subs = (function () {
 
 var meta = {
     callbacks: {},
-    stream_created: false,
+    stream_created: undefined,
     is_open: false,
 };
 var exports = {};
@@ -133,7 +133,7 @@ function update_in_home_view(sub, value) {
         var saved_ypos;
         // Save our current scroll position
         if (ui.home_tab_obscured()) {
-            saved_ypos = viewport.scrollTop();
+            saved_ypos = message_viewport.scrollTop();
         } else if (home_msg_list === current_msg_list &&
                    current_msg_list.selected_row().offset() !== null) {
             msg_offset = current_msg_list.selected_row().offset().top;
@@ -146,7 +146,7 @@ function update_in_home_view(sub, value) {
 
         // Ensure we're still at the same scroll position
         if (ui.home_tab_obscured()) {
-            viewport.scrollTop(saved_ypos);
+            message_viewport.scrollTop(saved_ypos);
         } else if (home_msg_list === current_msg_list) {
             // We pass use_closest to handle the case where the
             // currently selected message is being hidden from the
@@ -154,7 +154,7 @@ function update_in_home_view(sub, value) {
             home_msg_list.select_id(home_msg_list.selected_id(),
                                     {use_closest: true, empty_ok: true});
             if (current_msg_list.selected_id() !== -1) {
-                viewport.set_message_offset(msg_offset);
+                message_viewport.set_message_offset(msg_offset);
             }
         }
 
@@ -287,20 +287,29 @@ function add_email_hint(row, email_address_hint_content) {
     });
 }
 
+// The `meta.stream_created` flag tells us whether the stream was just
+// created in this browser window; it's a hack to work around the
+// server_events code flow not having a good way to associate with
+// this request.  These should be appended to the top of the list so
+// they are more visible.
 function add_sub_to_table(sub) {
     sub = stream_data.add_admin_options(sub);
     stream_data.update_subscribers_count(sub);
     var html = templates.render('subscription', sub);
     var settings_html = templates.render('subscription_settings', sub);
-    $(".streams-list").append(html);
+    if (meta.stream_created === sub.name) {
+        $(".streams-list").prepend(html).scrollTop(0);
+    } else {
+        $(".streams-list").append(html);
+    }
     $(".subscriptions .settings").append($(settings_html));
 
     var email_address_hint_content = templates.render('email_address_hint', { page_params: page_params });
     add_email_hint(sub, email_address_hint_content);
 
-    if (meta.stream_created) {
+    if (meta.stream_created === sub.name) {
         $(".stream-row[data-stream-id='" + stream_data.get_sub(meta.stream_created).stream_id + "']").click();
-        meta.stream_created = false;
+        meta.stream_created = undefined;
     }
 }
 
@@ -770,7 +779,7 @@ exports.change_state = (function () {
 
         // if there are any arguments the state should be modified.
         if (hash.arguments.length > 0) {
-            // if in #subscriptions/new form.
+            // if in #streams/new form.
             if (hash.arguments[0] === "new") {
                 $("#create_stream_button").click();
                 components.toggle.lookup("stream-filter-toggle").goto("All streams");
@@ -1129,10 +1138,10 @@ $(function () {
             $('#create_stream_name').focus();
         }
 
-        // change the hash to #subscriptions/new to allow for linking and
+        // change the hash to #streams/new to allow for linking and
         // easy discovery.
 
-        window.location.hash = "#subscriptions/new";
+        window.location.hash = "#streams/new";
     });
 
     $('body').on('change', '#user-checkboxes input, #make-invite-only input', update_announce_stream_state);
@@ -1405,7 +1414,7 @@ $(function () {
             var stream_id = $(this).attr("data-stream-id");
             var sub = stream_data.get_sub_by_id(stream_id);
 
-            window.location.hash = "#subscriptions" + "/" +
+            window.location.hash = "#streams" + "/" +
                 stream_id + "/" +
                 hashchange.encodeHashComponent(sub.name);
         }
@@ -1531,7 +1540,7 @@ function focus_on_narrowed_stream() {
 
 exports.show_and_focus_on_narrow = function () {
     $(document).one('subs_page_loaded.zulip', focus_on_narrowed_stream);
-    ui.change_tab_to("#subscriptions");
+    ui.change_tab_to("#streams");
 };
 
 return exports;

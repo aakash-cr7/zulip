@@ -258,7 +258,7 @@ LANGUAGE_CODE = 'en-us'
 # This is used so that application data can hook into specific site(s) and a
 # single database can manage content for multiple sites.
 #
-# We set this site's domain to 'zulip.com' in populate_db.
+# We set this site's string_id to 'zulip' in populate_db.
 SITE_ID = 1
 
 # If you set this to False, Django will make some optimizations so as not
@@ -678,6 +678,12 @@ PIPELINE = {
             ),
             'output_filename': 'min/portico.css'
         },
+        'landing-page': {
+            'source_filenames': (
+                'styles/landing-page.css',
+            ),
+            'output_filename': 'min/landing.css'
+        },
         # Two versions of the app CSS exist because of QTBUG-3467
         'app-fontcompat': {
             'source_filenames': (
@@ -749,6 +755,12 @@ JS_SPECS = {
         ],
         'output_filename': 'min/common.js'
     },
+    'landing-page': {
+        'source_filenames': [
+            'js/portico/landing-page.js',
+        ],
+        'output_filename': 'min/landing.js'
+    },
     'signup': {
         'source_filenames': [
             'js/portico/signup.js',
@@ -806,7 +818,7 @@ JS_SPECS = {
             'js/unread_ui.js',
             'js/muting.js',
             'js/muting_ui.js',
-            'js/viewport.js',
+            'js/message_viewport.js',
             'js/rows.js',
             'js/people.js',
             'js/unread.js',

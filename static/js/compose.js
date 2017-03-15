@@ -81,7 +81,7 @@ function show_box(tabname, focus_area, opts) {
     var cover = selected_row.offset().top + selected_row.height()
         - $("#compose").offset().top;
     if (cover > 0) {
-        viewport.user_initiated_animate_scroll(cover+5);
+        message_viewport.user_initiated_animate_scroll(cover+5);
     }
 
 }
@@ -227,6 +227,8 @@ function show_box_for_msg_type(msg_type, opts) {
 }
 
 exports.start = function (msg_type, opts) {
+    $("#new_message_content").autosize();
+
     if (reload.is_in_progress()) {
         return;
     }
@@ -289,6 +291,8 @@ function abort_xhr() {
 }
 
 exports.cancel = function () {
+    $("#new_message_content").height(40 + "px");
+
     if (page_params.narrow !== undefined) {
         // Never close the compose box in narrow embedded windows, but
         // at least clear the subject and unfade.
@@ -636,6 +640,13 @@ exports.respond_to_message = function (opts) {
 
 };
 
+exports.reply_with_mention = function (opts) {
+    exports.respond_to_message(opts);
+    var message = current_msg_list.selected_message();
+    var mention = '@**' + message.sender_full_name + '**';
+    $('#new_message_content').val(mention + ' ');
+};
+
 // This function is for debugging / data collection only.  Arguably it
 // should live in debug.js, but then it wouldn't be able to call
 // send_message() directly below.
@@ -803,7 +814,7 @@ function validate_stream_message_address_info(stream_name) {
         case "does-not-exist":
             response = "<p>The stream <b>" +
                 Handlebars.Utils.escapeExpression(stream_name) + "</b> does not exist.</p>" +
-                "<p>Manage your subscriptions <a href='#subscriptions'>on your Streams page</a>.</p>";
+                "<p>Manage your subscriptions <a href='#streams/all'>on your Streams page</a>.</p>";
             compose_error(response, $('#stream'));
             return false;
         case "error":
@@ -811,7 +822,7 @@ function validate_stream_message_address_info(stream_name) {
         case "not-subscribed":
             response = "<p>You're not subscribed to the stream <b>" +
                 Handlebars.Utils.escapeExpression(stream_name) + "</b>.</p>" +
-                "<p>Manage your subscriptions <a href='#subscriptions'>on your Streams page</a>.</p>";
+                "<p>Manage your subscriptions <a href='#streams/all'>on your Streams page</a>.</p>";
             compose_error(response, $('#stream'));
             return false;
         }
@@ -901,7 +912,35 @@ exports.validate = function () {
 };
 
 $(function () {
-    $("#new_message_content").autosize();
+    (function on_compose_resize(cb) {
+        var meta = {
+            compose_box: document.querySelector("#new_message_content"),
+            height: null,
+            mousedown: false,
+        };
+
+        meta.compose_box.addEventListener("mousedown", function () {
+            meta.mousedown = true;
+            meta.height = meta.compose_box.clientHeight;
+        });
+
+        // If the user resizes the compose box manually, we use the
+        // callback to stop autosize from adjusting the compose box height.
+        document.body.addEventListener("mouseup", function () {
+            if (meta.mousedown === true) {
+                meta.mousedown = false;
+                if (meta.height !== meta.compose_box.clientHeight) {
+                    meta.height = meta.compose_box.clientHeight;
+                    cb.call(meta.compose_box, meta.height);
+                }
+            }
+        });
+    }(function (height) {
+        // This callback disables autosize on the compose box.  It
+        // will be re-enabled when the compose box is next opened.
+        $("#new_message_content").trigger("autosize.destroy")
+            .height(height + "px");
+    }));
 
     // Run a feature test and decide whether to display
     // the "Attach files" button

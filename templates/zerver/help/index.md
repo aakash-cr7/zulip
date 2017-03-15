@@ -64,6 +64,7 @@ as an **organization**.
 ### Editing
 * [Edit or delete a message](/help/edit-or-delete-a-message)
 * [Change the topic of a message](/help/change-the-topic-of-a-message)
+* [View a message's edit history](/help/view-a-messages-edit-history)
 
 ## People
 * [Check whether someone is here or away](/help/check-whether-someone-is-here-or-away)
@@ -126,7 +127,8 @@ as an **organization**.
 * [Allow anyone to join without an invitation](/help/allow-anyone-to-join-without-an-invitation)
 * [Only allow admins to invite new users](/help/only-allow-admins-to-invite-new-users)
 * [Only allow admins to create new streams](/help/only-allow-admins-to-create-new-streams-feature)
-* [Prevent users from changing their email address](/help/disallow-users-to-change-their-email-address)
+* [Prevent users from changing their name](/help/prevent-users-from-changing-their-name)
+* [Prevent users from changing their email address](/help/prevent-users-from-changing-their-email-address)
 * [Restrict editing of old messages and topics](/help/restrict-editing-of-old-messages-and-topics)
 * [Change the default language for your organization](/help/change-the-default-language-for-your-organization)
 * [Add custom emoji](/help/add-custom-emoji)

@@ -173,7 +173,7 @@ class Realm(ModelReprMixin, models.Model):
 
     def __unicode__(self):
         # type: () -> Text
-        return u"<Realm: %s %s>" % (self.domain, self.id)
+        return u"<Realm: %s %s>" % (self.string_id, self.id)
 
     @cache_with_key(get_realm_emoji_cache_key, timeout=3600*24*7)
     def get_emoji(self):
@@ -190,6 +190,16 @@ class Realm(ModelReprMixin, models.Model):
         # type: () -> Sequence[UserProfile]
         # TODO: Change return type to QuerySet[UserProfile]
         return UserProfile.objects.filter(realm=self, is_active=True).select_related()
+
+    def get_bot_domain(self):
+        # type: () -> str
+        # Remove the port. Mainly needed for development environment.
+        external_host = settings.EXTERNAL_HOST.split(':')[0]
+        if settings.REALMS_HAVE_SUBDOMAINS or \
+           Realm.objects.filter(deactivated=False) \
+                        .exclude(string_id__in=settings.SYSTEM_ONLY_REALMS).count() > 1:
+            return "%s.%s" % (self.string_id, external_host)
+        return external_host
 
     @property
     def subdomain(self):
@@ -373,7 +383,7 @@ class RealmEmoji(ModelReprMixin, models.Model):
 
     def __unicode__(self):
         # type: () -> Text
-        return u"<RealmEmoji(%s): %s %s>" % (self.realm.domain, self.name, self.img_url)
+        return u"<RealmEmoji(%s): %s %s>" % (self.realm.string_id, self.name, self.img_url)
 
 def get_realm_emoji_uncached(realm):
     # type: (Realm) -> Dict[Text, Optional[Dict[str, Text]]]
@@ -432,7 +442,7 @@ class RealmFilter(models.Model):
 
     def __unicode__(self):
         # type: () -> Text
-        return u"<RealmFilter(%s): %s %s>" % (self.realm.domain, self.pattern, self.url_format_string)
+        return u"<RealmFilter(%s): %s %s>" % (self.realm.string_id, self.pattern, self.url_format_string)
 
 def get_realm_filters_cache_key(realm_id):
     # type: (int) -> Text

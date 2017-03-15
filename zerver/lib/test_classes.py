@@ -14,7 +14,6 @@ from django.template import loader
 from django.test.testcases import SerializeMixin
 from django.http import HttpResponse
 from django.db.utils import IntegrityError
-from django.utils.translation import ugettext as _
 
 from zerver.lib.initial_password import initial_password
 from zerver.lib.db import TimeTrackingCursor
@@ -284,7 +283,7 @@ class ZulipTestCase(TestCase):
                      content=u"test content", subject=u"test", **kwargs):
         # type: (Text, Union[Text, List[Text]], int, Text, Text, **Any) -> int
         sender = get_user_profile_by_email(sender_name)
-        if message_type == Recipient.PERSONAL:
+        if message_type in [Recipient.PERSONAL, Recipient.HUDDLE]:
             message_type_name = "private"
         else:
             message_type_name = "stream"

@@ -17,8 +17,10 @@ from django.conf import settings
 from django.test.utils import get_runner
 
 target_fully_covered = {path for target in [
-    'analytics/tests/*.py',
     'analytics/lib/*.py',
+    'analytics/models.py',
+    'analytics/tests/*.py',
+    'analytics/views.py',
     'zerver/context_processors.py',
     'zerver/lib/alert_words.py',
     'zerver/lib/attachments.py',
@@ -63,10 +65,12 @@ target_fully_covered = {path for target in [
 ] for path in glob.glob(target)}
 
 not_yet_fully_covered = {
-    # Goal is for analytics to have 100% coverage
-    'analytics/lib/counts.py',
+    # Analytics fixtures library is used to generate test fixtures;
+    # isn't properly accounted for in test coverage analysis since it
+    # runs before tests.
     'analytics/lib/fixtures.py',
-    'analytics/lib/time_utils.py',
+    # We have 100% coverage on the new stuff; need to refactor old stuff.
+    'analytics/views.py',
     # Major lib files should have 100% coverage
     'confirmation/models.py',
     'zerver/decorator.py',
@@ -82,15 +86,11 @@ not_yet_fully_covered = {
     'zerver/models.py',
     # Test files should have full coverage; it's a bug in the test if
     # they don't!  There are open issues for all of these.
-    'zerver/tests/test_narrow.py',
     'zerver/tests/test_tornado.py',
-    'zerver/tests/test_urls.py',
     # Getting views file coverage to 100% is a major project goal
     'zerver/views/auth.py',
     'zerver/views/home.py',
     'zerver/views/registration.py',
-    # This one has 1 line that isn't covered in Python 3
-    'zerver/views/upload.py',
     # Getting this to 100% is a major project goal.
     'zproject/backends.py',
 }
